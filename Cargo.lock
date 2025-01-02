@@ -1918,6 +1918,9 @@ dependencies = [
 [[package]]
 name = "first-render"
 version = "0.1.0"
+dependencies = [
+ "bevy",
+]
 
 [[package]]
 name = "first-try"
