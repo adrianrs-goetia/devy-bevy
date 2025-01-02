@@ -4,6 +4,7 @@ use bevy::{
     input::{gamepad::GamepadEvent, keyboard::KeyboardInput, ButtonState},
     prelude::*,
 };
+use std::collections::HashMap;
 
 fn main() {
     println!("Starting devy-bevy");
@@ -19,15 +20,13 @@ impl Plugin for HelloPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<HelloEvent>()
             .insert_resource(GreetTimer(Timer::from_seconds(2.0, TimerMode::Once)))
-            .add_systems(Startup, (add_people, update_people, greet_people, greet_otherpeople).chain())
+            .add_systems(
+                Startup,
+                (add_people, update_people, greet_people, greet_otherpeople).chain(),
+            )
             .add_systems(
                 Update,
-                (
-                    hello_world,
-                    read_input,
-                    read_helloevent,
-                    check_greettimer,
-                ),
+                (hello_world, read_input, read_helloevent, check_greettimer),
             );
     }
 }
@@ -87,11 +86,58 @@ fn read_input(
             _ => println!("input!!"),
         }
     }
+
+    let mut mmap = HashMap::from([("adrian", 30), ("henrik", 29), ("alex", 28), ("magnus", 29)]);
+
+    mmap.entry("stig").or_insert(24);
+
+    let a = if mmap.contains_key("adian") {
+        mmap.get("adian").unwrap()
+    } else {
+        &1
+    };
+    let b = &2;
+    let c = if mmap.contains_key("ad") {
+        mmap.get("adrian").unwrap()
+    } else {
+        &100
+    };
+
+    let d = {
+        match mmap.get("henrik") {
+            Some(t) => t,
+            None => &66,
+        }
+    };
+    let e = {
+        match mmap.get("he") {
+            Some(t) => t,
+            None => &66,
+        }
+    };
+    let f  = {
+        let mut t = 1;
+        t +=1;
+        t +=1;
+        t +=1;
+        t +=1;
+        t
+    };
+
+    println!("a: {}", a);
+    println!("b: {}", b);
+    println!("c: {}", c);
+    println!("d: {}", d);
+    println!("e: {}", e);
+    println!("f: {}", f);
 }
 
 fn check_greettimer(time: Res<Time>, mut timer: ResMut<GreetTimer>) {
-    if timer.0.tick(time.delta()).just_finished(){
-        println!("HelloPlugin :: GreetTimer just_finished at: {}", time.elapsed_secs());
+    if timer.0.tick(time.delta()).just_finished() {
+        println!(
+            "HelloPlugin :: GreetTimer just_finished at: {}",
+            time.elapsed_secs()
+        );
     }
 }
 
