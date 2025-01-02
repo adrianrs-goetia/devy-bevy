@@ -124,12 +124,12 @@ fn read_input(
         t
     };
 
-    println!("a: {}", a);
-    println!("b: {}", b);
-    println!("c: {}", c);
-    println!("d: {}", d);
-    println!("e: {}", e);
-    println!("f: {}", f);
+    // println!("a: {}", a);
+    // println!("b: {}", b);
+    // println!("c: {}", c);
+    // println!("d: {}", d);
+    // println!("e: {}", e);
+    // println!("f: {}", f);
 }
 
 fn check_greettimer(time: Res<Time>, mut timer: ResMut<GreetTimer>) {

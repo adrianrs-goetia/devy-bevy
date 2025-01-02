@@ -1759,13 +1759,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "devy-bevy"
-version = "0.1.0"
-dependencies = [
- "bevy",
-]
-
-[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1920,6 +1913,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07c6f4c64c1d33a3111c4466f7365ebdcc37c5bd1ea0d62aae2e3d722aacbedb"
 dependencies = [
  "simd-adler32",
+]
+
+[[package]]
+name = "first-render"
+version = "0.1.0"
+
+[[package]]
+name = "first-try"
+version = "0.1.0"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]
