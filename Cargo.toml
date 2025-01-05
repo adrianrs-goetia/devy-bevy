@@ -3,8 +3,9 @@
 resolver = "2"
 
 members = [
-    "games/1-first-try", 
-    "games/2-first-render"
+    "example-copies/1-first-try", 
+    "example-copies/2-first-render", 
+    "example-copies/3-text2d"
 ]
 
 [workspace.dependencies]
