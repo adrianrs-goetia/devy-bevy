@@ -5,4 +5,6 @@ edition = "2021"
 
 [dependencies]
 bevy.workspace = true
+
 exit-game.workspace = true
+input-manager.workspace = true

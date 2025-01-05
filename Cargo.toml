@@ -9,11 +9,14 @@ members = [
 , "example-copies/4-scene3d"
 
 , "plugins/exit-game"
+, "plugins/input-manager"
 ]
 
 [workspace.dependencies]
 bevy = "0.15.0"
+
 exit-game = { path = "plugins/exit-game" }
+input-manager = { path = "plugins/input-manager" }
 
 [profile.dev]
 opt-level = 1
