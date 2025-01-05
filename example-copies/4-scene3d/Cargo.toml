@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 bevy.workspace = true
-exit-game = { path = "../../plugins/exit-game" }
+exit-game.workspace = true

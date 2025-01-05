@@ -3,5 +3,9 @@ name = "exit-game"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "exit_game"
+path = "src/lib.rs"
+
 [dependencies]
 bevy.workspace = true

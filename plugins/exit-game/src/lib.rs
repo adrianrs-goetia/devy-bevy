@@ -30,7 +30,7 @@ fn keyboard_input(
     for input in input_events.read() {
         if input.state.is_pressed() {
             match &input.key_code {
-                KeyCode::Escape => {
+                KeyCode::Escape | KeyCode::CapsLock => {
                     ev.send(ExitGameEvent);
                 }
                 _ => continue,

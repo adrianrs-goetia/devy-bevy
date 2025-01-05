@@ -13,6 +13,7 @@ members = [
 
 [workspace.dependencies]
 bevy = "0.15.0"
+exit-game = { path = "plugins/exit-game" }
 
 [profile.dev]
 opt-level = 1
