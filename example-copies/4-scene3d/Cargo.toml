@@ -1,0 +1,8 @@
+[package]
+name = "scene3d"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy.workspace = true
+exit-game = { path = "../../plugins/exit-game" }

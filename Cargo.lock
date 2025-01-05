@@ -1901,6 +1901,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "exit-game"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3522,6 +3529,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "scene3d"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "exit-game",
 ]
 
 [[package]]
