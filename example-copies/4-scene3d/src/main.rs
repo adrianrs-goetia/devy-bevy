@@ -1,16 +1,30 @@
-use bevy::{picking::pointer::PointerInteraction, prelude::*};
+use std::{
+    f32::consts::{PI, TAU},
+    time::Duration,
+};
+
+use bevy::{input::keyboard, picking::pointer::PointerInteraction, prelude::*};
 use exit_game::ExitGamePlugin;
+
+const BOXY_PATH: &str = "models/boxy.glb";
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, ExitGamePlugin, MeshPickingPlugin))
         .insert_resource(GroundEntity::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, draw_cursor)
+        .add_systems(Update, setup_once_loaded)
+        .add_systems(
+            Update,
+            (draw_cursor, rotate_boxy, keyboard_animation_control),
+        )
         .run();
 }
 #[derive(Component)]
 struct Ground;
+
+#[derive(Component)]
+struct Boxy;
 
 #[derive(Resource)]
 struct GroundEntity {
@@ -22,12 +36,41 @@ impl GroundEntity {
     }
 }
 
+#[derive(Resource)]
+struct Animations {
+    animations: Vec<AnimationNodeIndex>,
+    graph: Handle<AnimationGraph>,
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ground_entity: ResMut<GroundEntity>,
+    asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
+    // boxy
+    let (graph, node_indices) = AnimationGraph::from_clips([
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(BOXY_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(1).from_asset(BOXY_PATH)),
+    ]);
+    let graph_handle = graphs.add(graph);
+    commands.insert_resource(Animations {
+        animations: node_indices,
+        graph: graph_handle,
+    });
+    let boxy_transform: Transform = {
+        let mut transform = Transform::from_xyz(0.0, 1.0, 0.0);
+        transform.rotate_y(PI * 1.5);
+        transform
+    };
+    commands.spawn((
+        SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(BOXY_PATH))),
+        boxy_transform,
+        Boxy,
+    ));
+
     // ground
     ground_entity.id = commands
         .spawn((
@@ -63,6 +106,24 @@ fn setup(
     ));
 }
 
+fn setup_once_loaded(
+    mut commands: Commands,
+    animations: Res<Animations>,
+    mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+) {
+    // println!("AnimationPlayer loaded...");
+    for (entity, mut player) in &mut players {
+        let mut transitions = AnimationTransitions::new();
+        transitions
+            .play(&mut player, animations.animations[0], Duration::ZERO)
+            .repeat();
+        commands
+            .entity(entity)
+            .insert(AnimationGraphHandle(animations.graph.clone()))
+            .insert(transitions);
+    }
+}
+
 fn draw_cursor(
     pointers: Query<&PointerInteraction>,
     mut gizmos: Gizmos,
@@ -87,6 +148,31 @@ fn draw_cursor(
                 0.2,
                 Color::WHITE,
             );
+        }
+    }
+}
+
+fn rotate_boxy(time: Res<Time>, mut boxy: Single<&mut Transform, With<Boxy>>) {
+    // boxy.rotate_y(0.2 * TAU * time.delta_secs());
+}
+
+fn keyboard_animation_control(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut animation_players: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
+    animations: Res<Animations>,
+    mut current_animation: Local<usize>,
+) {
+    for (mut player, mut transitions) in &mut animation_players {
+        if keyboard_input.just_pressed(KeyCode::Enter) {
+            *current_animation = (*current_animation + 1) % animations.animations.len();
+
+            transitions
+                .play(
+                    &mut player,
+                    animations.animations[*current_animation],
+                    Duration::ZERO,
+                )
+                .repeat();
         }
     }
 }
