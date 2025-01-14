@@ -8,15 +8,13 @@ members = [
 , "example-copies/3-text2d"
 , "example-copies/4-scene3d"
 
-, "plugins/exit-game"
-, "plugins/input-manager"
+, "plugins/core"
 ]
 
 [workspace.dependencies]
 bevy = "0.15.0"
 
-exit-game = { path = "plugins/exit-game" }
-input-manager = { path = "plugins/input-manager" }
+core = { path = "plugins/core" }
 
 [profile.dev]
 opt-level = 1

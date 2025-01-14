@@ -1,25 +1,54 @@
-use std::{
-    f32::consts::{PI, TAU},
-    time::Duration,
-};
+use std::{f32::consts::PI, time::Duration};
 
-use bevy::{input::keyboard, picking::pointer::PointerInteraction, prelude::*};
-use exit_game::ExitGamePlugin;
+use bevy::{picking::pointer::PointerInteraction, prelude::*};
+use core::exit_game::ExitGamePlugin;
+use core::input_manager::{Button, InputManager, InputManagerPlugin};
 
 const BOXY_PATH: &str = "models/boxy.glb";
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, ExitGamePlugin, MeshPickingPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            ExitGamePlugin,
+            InputManagerPlugin,
+            MeshPickingPlugin,
+        ))
         .insert_resource(GroundEntity::default())
-        .add_systems(Startup, setup)
-        .add_systems(Update, setup_once_loaded)
+        .add_systems(Startup, (setup, register_input))
+        .add_systems(Update, (setup_once_loaded, read_im_input))
         .add_systems(
             Update,
             (draw_cursor, rotate_boxy, keyboard_animation_control),
         )
         .run();
 }
+
+static LEFT: &'static str = "left";
+
+fn register_input(mut im: ResMut<InputManager>) {
+    im.register_button_events(
+        LEFT,
+        vec![
+            Button::Keyboard(KeyCode::KeyA),
+            Button::Keyboard(KeyCode::ArrowLeft),
+            Button::Gamepad(GamepadButton::East),
+        ],
+    );
+}
+
+fn read_im_input(im: Res<InputManager>) {
+    if im.is_action_just_pressed(LEFT) {
+        println!(" !!! LEFT IS JUST PRESSED !!! ")
+    } 
+    if im.is_action_just_released(LEFT) {
+        println!(" LEFT REALEASED ")
+    } 
+    if im.is_action_pressed(LEFT) {
+        println!(" left down ")
+    }
+}
+
 #[derive(Component)]
 struct Ground;
 
@@ -152,7 +181,7 @@ fn draw_cursor(
     }
 }
 
-fn rotate_boxy(time: Res<Time>, mut boxy: Single<&mut Transform, With<Boxy>>) {
+fn rotate_boxy(time: Res<Time>, boxy: Single<&mut Transform, With<Boxy>>) {
     // boxy.rotate_y(0.2 * TAU * time.delta_secs());
 }
 
