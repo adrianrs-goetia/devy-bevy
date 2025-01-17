@@ -1,9 +1,11 @@
 use bevy::core_pipeline::core_2d::graph::input;
-use bevy::input::gamepad::GamepadInput;
+use bevy::input::gamepad::{GamepadAxisChangedEvent, GamepadInput};
+use bevy::input::mouse::MouseButtonInput;
+use bevy::math::vec2;
 use bevy::utils::default;
 use bevy::utils::hashbrown::HashSet;
 use bevy::{
-    input::{gamepad::GamepadEvent, keyboard::KeyboardInput, mouse::MouseMotion},
+    input::{gamepad::GamepadEvent, keyboard::KeyboardInput, mouse::MouseMotion, ButtonState},
     prelude::*,
 };
 use std::collections::HashMap;
@@ -17,8 +19,15 @@ impl Plugin for InputManagerPlugin {
     }
 }
 
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub struct Action(pub &'static str);
+
 #[derive(PartialEq, Eq, Hash)]
-struct Action(&'static str);
+pub enum InputType {
+    Mouse,
+    Keyboard,
+    Gamepad,
+}
 
 /// Manager
 #[derive(Resource)]
@@ -35,9 +44,44 @@ impl Default for InputManager {
 }
 
 impl InputManager {
-    pub fn register_button_events(&mut self, action: &'static str, buttons: Vec<Button>) {
+    pub fn register_motion(
+        &mut self,
+        action: Action,
+        // entries: MotionRegisterEntry,
+        entries: (InputType, [MotionEntry; 4]),
+        // entries: Vec<InputType, [MotionEntry; 4]>,
+        // entrytype: InputType,
+        // motions: [MotionEntry; 4],
+    ) {
+    }
+
+    pub fn get_motion(&self, action: &Action) -> Vec2 {
+        Vec2::new(0., 0.)
+    }
+
+    pub fn get_motion3z(&self, action: &Action) -> Vec3 {
+        let v2 = self.get_motion(action);
+        Vec3 {
+            x: v2.x,
+            y: 0.0,
+            z: v2.y,
+        }
+    }
+
+    pub fn get_motion3y(&self, action: &Action) -> Vec3 {
+        let v2 = self.get_motion(action);
+        Vec3 {
+            x: v2.x,
+            y: v2.y,
+            z: 0.0,
+        }
+    }
+
+    fn set_motion_from_gamepad(&mut self, motion: GamepadAxisChangedEvent) {}
+
+    pub fn register_button_events(&mut self, action: Action, buttons: Vec<Button>) {
         self.entries.insert(
-            Action(action),
+            action,
             ButtonInputCollection {
                 just_pressed: HashSet::<Button>::new(),
                 pressed: HashSet::<Button>::new(),
@@ -47,22 +91,22 @@ impl InputManager {
         );
     }
 
-    pub fn is_action_pressed(&self, action: &'static str) -> bool {
-        if let Some(entry) = self.entries.get(&Action(action)) {
+    pub fn is_action_pressed(&self, action: Action) -> bool {
+        if let Some(entry) = self.entries.get(&action) {
             return !entry.pressed.is_empty();
         }
         false
     }
 
-    pub fn is_action_just_pressed(&self, action: &'static str) -> bool {
-        if let Some(entry) = self.entries.get(&Action(action)) {
+    pub fn is_action_just_pressed(&self, action: Action) -> bool {
+        if let Some(entry) = self.entries.get(&action) {
             return !entry.just_pressed.is_empty();
         }
         false
     }
 
-    pub fn is_action_just_released(&self, action: &'static str) -> bool {
-        if let Some(entry) = self.entries.get(&Action(action)) {
+    pub fn is_action_just_released(&self, action: Action) -> bool {
+        if let Some(entry) = self.entries.get(&action) {
             return !entry.just_released.is_empty();
         }
         false
@@ -70,7 +114,6 @@ impl InputManager {
 
     fn set_button_pressed(&mut self, button: Button) {
         for buttoninput in self.entries.values_mut() {
-
             for b in buttoninput.released.extract_if(|b| *b == button) {
                 buttoninput.just_pressed.insert(b);
             }
@@ -107,6 +150,7 @@ impl InputManager {
 
 fn read_button_input(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mut mouse: EventReader<MouseButtonInput>,
     mut gamepad: EventReader<GamepadEvent>,
     mut input_manager: ResMut<InputManager>,
 ) {
@@ -118,6 +162,13 @@ fn read_button_input(
     }
     for key in keyboard.get_just_released() {
         input_manager.set_button_released(Button::Keyboard(*key));
+    }
+
+    for event in mouse.read() {
+        match event.state {
+            ButtonState::Pressed => input_manager.set_button_pressed(Button::Mouse(event.button)),
+            ButtonState::Released => input_manager.set_button_released(Button::Mouse(event.button)),
+        }
     }
 
     for event in gamepad.read() {
@@ -134,9 +185,17 @@ fn read_button_input(
     }
 }
 
+fn read_motion(
+    // mouse:
+    mut gamepad: EventReader<GamepadEvent>,
+    mut input_manager: ResMut<InputManager>,
+) {
+}
+
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Button {
     Keyboard(KeyCode),
+    Mouse(MouseButton),
     Gamepad(GamepadButton),
 }
 
@@ -146,3 +205,26 @@ struct ButtonInputCollection {
     just_released: HashSet<Button>,
     released: HashSet<Button>,
 }
+
+// Right/Left   x-axis
+// Up/Down      y-axis
+pub enum MotionDirection {
+    Up,
+    Down,
+    Right,
+    Left,
+}
+
+pub enum MouseMotionDirection {
+    Up,
+    Down,
+    Right,
+    Left,
+}
+
+pub enum MotionRelation {
+    Gamepad(GamepadAxis, i8),
+    Mouse(MouseMotionDirection, i8),
+}
+
+pub struct MotionEntry(pub MotionDirection, pub MotionRelation);

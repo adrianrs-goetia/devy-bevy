@@ -2,7 +2,9 @@ use std::{f32::consts::PI, time::Duration};
 
 use bevy::{picking::pointer::PointerInteraction, prelude::*};
 use core::exit_game::ExitGamePlugin;
-use core::input_manager::{Button, InputManager, InputManagerPlugin};
+use core::input_manager::{
+    Action, Button, InputManager, InputManagerPlugin, MotionDirection, MotionEntry, MotionRelation,
+};
 
 const BOXY_PATH: &str = "models/boxy.glb";
 
@@ -24,28 +26,52 @@ fn main() {
         .run();
 }
 
-static LEFT: &'static str = "left";
+static LEFT: Action = Action("left");
+static MOVEMENT: Action = Action("movement");
 
 fn register_input(mut im: ResMut<InputManager>) {
     im.register_button_events(
         LEFT,
         vec![
             Button::Keyboard(KeyCode::KeyA),
+            Button::Mouse(MouseButton::Left),
             Button::Keyboard(KeyCode::ArrowLeft),
             Button::Gamepad(GamepadButton::East),
         ],
+    );
+
+    im.register_motion(
+        MOVEMENT,
+        (
+            core::input_manager::InputType::Gamepad,
+            [
+                MotionEntry(
+                    MotionDirection::Up,
+                    MotionRelation::Gamepad(GamepadAxis::LeftStickY, 1),
+                ),
+                MotionEntry(
+                    MotionDirection::Down,
+                    MotionRelation::Gamepad(GamepadAxis::LeftStickY, -1),
+                ),
+                MotionEntry(
+                    MotionDirection::Right,
+                    MotionRelation::Gamepad(GamepadAxis::LeftStickX, 1),
+                ),
+                MotionEntry(
+                    MotionDirection::Left,
+                    MotionRelation::Gamepad(GamepadAxis::LeftStickX, -1),
+                ),
+            ],
+        ),
     );
 }
 
 fn read_im_input(im: Res<InputManager>) {
     if im.is_action_just_pressed(LEFT) {
         println!(" !!! LEFT IS JUST PRESSED !!! ")
-    } 
+    }
     if im.is_action_just_released(LEFT) {
         println!(" LEFT REALEASED ")
-    } 
-    if im.is_action_pressed(LEFT) {
-        println!(" left down ")
     }
 }
 
@@ -181,7 +207,7 @@ fn draw_cursor(
     }
 }
 
-fn rotate_boxy(time: Res<Time>, boxy: Single<&mut Transform, With<Boxy>>) {
+fn rotate_boxy(_time: Res<Time>, _boxy: Single<&mut Transform, With<Boxy>>) {
     // boxy.rotate_y(0.2 * TAU * time.delta_secs());
 }
 
