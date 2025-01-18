@@ -15,7 +15,7 @@ pub struct InputManagerPlugin;
 impl Plugin for InputManagerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(InputManager::default())
-            .add_systems(Update, read_button_input);
+            .add_systems(Update, (read_button_input, read_motion));
     }
 }
 
@@ -32,34 +32,33 @@ pub enum InputType {
 /// Manager
 #[derive(Resource)]
 pub struct InputManager {
-    entries: HashMap<Action, ButtonInputCollection>, // TODO input context stack
+    button_entries: HashMap<Action, ButtonInputCollection>, // TODO input context stack
+    motion_entries: HashMap<Action, MotionEntry>,
 }
 
 impl Default for InputManager {
     fn default() -> Self {
         Self {
-            entries: HashMap::<Action, ButtonInputCollection>::new(),
+            button_entries: HashMap::<Action, ButtonInputCollection>::new(),
+            motion_entries: HashMap::<Action, MotionEntry>::new(),
         }
     }
 }
 
 impl InputManager {
-    pub fn register_motion(
-        &mut self,
-        action: Action,
-        // entries: MotionRegisterEntry,
-        entries: (InputType, [MotionEntry; 4]),
-        // entries: Vec<InputType, [MotionEntry; 4]>,
-        // entrytype: InputType,
-        // motions: [MotionEntry; 4],
-    ) {
+    pub fn register_motion(&mut self, action: Action, entries: Vec<MotionRegistryEntry>) {
+        self.motion_entries
+            .insert(action, MotionEntry(entries, Vec2::new(0., 0.)));
     }
 
-    pub fn get_motion(&self, action: &Action) -> Vec2 {
-        Vec2::new(0., 0.)
+    pub fn get_motion(&self, action: Action) -> Vec2 {
+        if let Some(entry) = self.motion_entries.get(&action) {
+            return entry.1;
+        }
+        unreachable!("Missing action: {}", action.0)
     }
 
-    pub fn get_motion3z(&self, action: &Action) -> Vec3 {
+    pub fn get_motion3z(&self, action: Action) -> Vec3 {
         let v2 = self.get_motion(action);
         Vec3 {
             x: v2.x,
@@ -68,7 +67,7 @@ impl InputManager {
         }
     }
 
-    pub fn get_motion3y(&self, action: &Action) -> Vec3 {
+    pub fn get_motion3y(&self, action: Action) -> Vec3 {
         let v2 = self.get_motion(action);
         Vec3 {
             x: v2.x,
@@ -77,10 +76,34 @@ impl InputManager {
         }
     }
 
-    fn set_motion_from_gamepad(&mut self, motion: GamepadAxisChangedEvent) {}
+    fn set_motion_from_gamepad_event(&mut self, axis_event: &GamepadAxisChangedEvent) {
+        for motion_entry in self.motion_entries.values_mut() {
+            let motion = &mut motion_entry.1;
+
+            for mapping in motion_entry
+                .0
+                .iter()
+                .filter(|mapping| mapping.0 == InputType::Gamepad)
+            {
+                for relation in mapping.1.iter().filter(|relation| {
+                    if let MotionRelation::GamepadAxis(axis) = relation.1 {
+                        return axis == axis_event.axis;
+                    }
+                    false
+                }) {
+                    match relation.0 {
+                        MotionDirection::Up | MotionDirection::Down => motion.y = axis_event.value,
+                        MotionDirection::Right | MotionDirection::Left => {
+                            motion.x = axis_event.value
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     pub fn register_button_events(&mut self, action: Action, buttons: Vec<Button>) {
-        self.entries.insert(
+        self.button_entries.insert(
             action,
             ButtonInputCollection {
                 just_pressed: HashSet::<Button>::new(),
@@ -92,28 +115,28 @@ impl InputManager {
     }
 
     pub fn is_action_pressed(&self, action: Action) -> bool {
-        if let Some(entry) = self.entries.get(&action) {
+        if let Some(entry) = self.button_entries.get(&action) {
             return !entry.pressed.is_empty();
         }
         false
     }
 
     pub fn is_action_just_pressed(&self, action: Action) -> bool {
-        if let Some(entry) = self.entries.get(&action) {
+        if let Some(entry) = self.button_entries.get(&action) {
             return !entry.just_pressed.is_empty();
         }
         false
     }
 
     pub fn is_action_just_released(&self, action: Action) -> bool {
-        if let Some(entry) = self.entries.get(&action) {
+        if let Some(entry) = self.button_entries.get(&action) {
             return !entry.just_released.is_empty();
         }
         false
     }
 
     fn set_button_pressed(&mut self, button: Button) {
-        for buttoninput in self.entries.values_mut() {
+        for buttoninput in self.button_entries.values_mut() {
             for b in buttoninput.released.extract_if(|b| *b == button) {
                 buttoninput.just_pressed.insert(b);
             }
@@ -124,7 +147,7 @@ impl InputManager {
         }
     }
     fn move_prev_frame_just_pressed(&mut self) {
-        for buttoninput in self.entries.values_mut() {
+        for buttoninput in self.button_entries.values_mut() {
             for b in buttoninput.just_pressed.drain() {
                 buttoninput.pressed.insert(b);
             }
@@ -132,7 +155,7 @@ impl InputManager {
     }
 
     fn set_button_released(&mut self, button: Button) {
-        for buttoninput in self.entries.values_mut() {
+        for buttoninput in self.button_entries.values_mut() {
             for b in buttoninput.pressed.extract_if(|b| *b == button) {
                 buttoninput.just_released.insert(b);
             }
@@ -140,7 +163,7 @@ impl InputManager {
     }
 
     fn move_prev_frame_just_released(&mut self) {
-        for buttoninput in self.entries.values_mut() {
+        for buttoninput in self.button_entries.values_mut() {
             for b in buttoninput.just_released.drain() {
                 buttoninput.released.insert(b);
             }
@@ -190,6 +213,11 @@ fn read_motion(
     mut gamepad: EventReader<GamepadEvent>,
     mut input_manager: ResMut<InputManager>,
 ) {
+    for event in gamepad.read() {
+        if let GamepadEvent::Axis(event) = event {
+            input_manager.set_motion_from_gamepad_event(event);
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -223,8 +251,10 @@ pub enum MouseMotionDirection {
 }
 
 pub enum MotionRelation {
-    Gamepad(GamepadAxis, i8),
+    GamepadAxis(GamepadAxis),
     Mouse(MouseMotionDirection, i8),
 }
 
-pub struct MotionEntry(pub MotionDirection, pub MotionRelation);
+pub struct MotionDirectionRelation(pub MotionDirection, pub MotionRelation);
+pub struct MotionRegistryEntry(pub InputType, pub [MotionDirectionRelation; 4]);
+struct MotionEntry(Vec<MotionRegistryEntry>, Vec2);

@@ -3,7 +3,8 @@ use std::{f32::consts::PI, time::Duration};
 use bevy::{picking::pointer::PointerInteraction, prelude::*};
 use core::exit_game::ExitGamePlugin;
 use core::input_manager::{
-    Action, Button, InputManager, InputManagerPlugin, MotionDirection, MotionEntry, MotionRelation,
+    Action, Button, InputManager, InputManagerPlugin, MotionDirection, MotionDirectionRelation,
+    MotionRegistryEntry, MotionRelation,
 };
 
 const BOXY_PATH: &str = "models/boxy.glb";
@@ -42,27 +43,27 @@ fn register_input(mut im: ResMut<InputManager>) {
 
     im.register_motion(
         MOVEMENT,
-        (
+        vec![MotionRegistryEntry(
             core::input_manager::InputType::Gamepad,
             [
-                MotionEntry(
+                MotionDirectionRelation(
                     MotionDirection::Up,
-                    MotionRelation::Gamepad(GamepadAxis::LeftStickY, 1),
+                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickY),
                 ),
-                MotionEntry(
+                MotionDirectionRelation(
                     MotionDirection::Down,
-                    MotionRelation::Gamepad(GamepadAxis::LeftStickY, -1),
+                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickY),
                 ),
-                MotionEntry(
+                MotionDirectionRelation(
                     MotionDirection::Right,
-                    MotionRelation::Gamepad(GamepadAxis::LeftStickX, 1),
+                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
                 ),
-                MotionEntry(
+                MotionDirectionRelation(
                     MotionDirection::Left,
-                    MotionRelation::Gamepad(GamepadAxis::LeftStickX, -1),
+                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
                 ),
             ],
-        ),
+        )],
     );
 }
 
@@ -73,6 +74,9 @@ fn read_im_input(im: Res<InputManager>) {
     if im.is_action_just_released(LEFT) {
         println!(" LEFT REALEASED ")
     }
+
+    let motion = im.get_motion(MOVEMENT);
+    println!("motion: {}", motion);
 }
 
 #[derive(Component)]
