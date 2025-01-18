@@ -115,12 +115,12 @@ fn read_input(
             None => &66,
         }
     };
-    let f  = {
+    let f = {
         let mut t = 1;
-        t +=1;
-        t +=1;
-        t +=1;
-        t +=1;
+        t += 1;
+        t += 1;
+        t += 1;
+        t += 1;
         t
     };
 

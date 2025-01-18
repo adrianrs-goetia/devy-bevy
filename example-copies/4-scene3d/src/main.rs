@@ -46,84 +46,21 @@ fn register_input(mut im: ResMut<InputManager>) {
                 relations: vec![
                     motion::Relation::GamepadAxis(GamepadAxis::LeftStickY, motion::Axis::Y),
                     motion::Relation::GamepadAxis(GamepadAxis::LeftStickX, motion::Axis::X),
-                    // motion::Relation(
-                    //     ::GamepadAxis(GamepadAxis::LeftStickY),
-                    // ),
-                    // motion::Relation(
-                    //     motion::Axis::Right,
-                    //     MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
-                    // ),
-                    // motion::Relation(
-                    //     motion::Axis::Left,
-                    //     MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
-                    // ),
                 ],
             },
-            // MotionRegistryEntry(
-            //     core::input_manager::InputType::Mouse,
-            //     vec![],
-            // ),
-            // [
-            //     motion::Relation(
-            //         motion::Axis::Up,
-            //         MotionRelation::Mouse(Mousemotion::Axis::Up),
-            //     ),
-            //     motion::Relation(
-            //         motion::Axis::Down,
-            //         MotionRelation::Mouse(Mousemotion::Axis::Down),
-            //     ),
-            //     motion::Relation(
-            //         motion::Axis::Right,
-            //         MotionRelation::Mouse(Mousemotion::Axis::Right),
-            //     ),
-            //     motion::Relation(
-            //         motion::Axis::Left,
-            //         MotionRelation::Mouse(Mousemotion::Axis::Left),
-            //     ),
-            // ],
-            // ),
-            // MotionRegistryEntry(
-            //     core::input_manager::InputType::Keyboard,
-            //     [
-            //         motion::Relation(
-            //             motion::Axis::Up,
-            //             MotionRelation::KeyCode(KeyCode::KeyW, 1),
-            //         ),
-            //         motion::Relation(
-            //             motion::Axis::Down,
-            //             MotionRelation::KeyCode(KeyCode::KeyS, -1),
-            //         ),
-            //         motion::Relation(
-            //             motion::Axis::Right,
-            //             MotionRelation::KeyCode(KeyCode::KeyD, 1),
-            //         ),
-            //         motion::Relation(
-            //             motion::Axis::Left,
-            //             MotionRelation::KeyCode(KeyCode::KeyA, -1),
-            //         ),
-            //     ],
-            // ),
-            // MotionRegistryEntry(
-            //     core::input_manager::InputType::Keyboard,
-            //     [
-            //         motion::Relation(
-            //             motion::Axis::Up,
-            //             MotionRelation::KeyCode(KeyCode::KeyJ, 1),
-            //         ),
-            //         motion::Relation(
-            //             motion::Axis::Down,
-            //             MotionRelation::KeyCode(KeyCode::KeyK, -1),
-            //         ),
-            //         motion::Relation(
-            //             motion::Axis::Right,
-            //             MotionRelation::KeyCode(KeyCode::KeyL, 1),
-            //         ),
-            //         motion::Relation(
-            //             motion::Axis::Left,
-            //             MotionRelation::KeyCode(KeyCode::KeyH, -1),
-            //         ),
-            //     ],
-            // ),
+            motion::Entry {
+                input_type: core::input_manager::InputType::Keyboard,
+                relations: vec![
+                    motion::Relation::KeyCode(KeyCode::KeyW, motion::Axis::PosY),
+                    motion::Relation::KeyCode(KeyCode::KeyS, motion::Axis::NegY),
+                    motion::Relation::KeyCode(KeyCode::KeyD, motion::Axis::PosX),
+                    motion::Relation::KeyCode(KeyCode::KeyA, motion::Axis::NegX),
+                ],
+            },
+            motion::Entry {
+                input_type: core::input_manager::InputType::Mouse,
+                relations: vec![motion::Relation::Mouse(20.)],
+            },
         ],
     );
 }

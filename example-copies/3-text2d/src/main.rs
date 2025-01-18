@@ -8,10 +8,10 @@ use bevy::{
 
 fn main() {
     App::new()
-    .add_plugins(DefaultPlugins)
-    .add_systems(Startup, setup)
-    .add_systems(Update, animate_translation)
-    .run();
+        .add_plugins(DefaultPlugins)
+        .add_systems(Startup, setup)
+        .add_systems(Update, animate_translation)
+        .run();
 }
 
 #[derive(Component)]

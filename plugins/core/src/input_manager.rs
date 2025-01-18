@@ -1,14 +1,10 @@
-use bevy::core_pipeline::core_2d::graph::input;
-use bevy::input::gamepad::{GamepadAxisChangedEvent, GamepadInput};
-use bevy::input::mouse::{AccumulatedMouseMotion, MouseButtonInput};
-use bevy::math::vec2;
-use bevy::utils::default;
+use bevy::input::gamepad::GamepadAxisChangedEvent;
+use bevy::input::mouse::MouseButtonInput;
 use bevy::utils::hashbrown::HashSet;
 use bevy::{
-    input::{gamepad::GamepadEvent, keyboard::KeyboardInput, mouse::MouseMotion, ButtonState},
+    input::{gamepad::GamepadEvent, ButtonState},
     prelude::*,
 };
-use motion::ActionEntry;
 use std::collections::HashMap;
 
 pub struct InputManagerPlugin;
@@ -41,12 +37,16 @@ impl Default for InputManager {
     fn default() -> Self {
         Self {
             button_entries: HashMap::<Action, ButtonInputCollection>::new(),
-            motion_entries: HashMap::<Action, ActionEntry>::new(),
+            motion_entries: HashMap::<Action, motion::ActionEntry>::new(),
         }
     }
 }
 
 impl InputManager {
+    /**
+     * Motions are applied in the order they come in, and later motion entries
+     * will overwrite previous ones
+     */
     pub fn register_motion(&mut self, action: Action, entries: Vec<motion::Entry>) {
         self.motion_entries.insert(
             action,
@@ -86,63 +86,10 @@ impl InputManager {
         &mut self,
         axis_events: Vec<GamepadAxisChangedEvent>,
         mouse_motion: Option<Vec2>,
-        keyboard: motion::Keycode,
+        keyboard: motion::KeyCodeSet,
     ) {
-        for motion_entry in self.motion_entries.values_mut() {
-            // motion_entry.motion = Vec2::new(0., 0.); // reset every frame
-
-            for mapping in motion_entry.motion_entries.iter() {
-                match mapping.input_type {
-                    InputType::Gamepad => {
-                        for axis_event in axis_events.iter() {
-                            for relation in mapping.relations.iter().filter(|relation| {
-                                if let motion::Relation::GamepadAxis(axis, _) = *relation {
-                                    return *axis == axis_event.axis;
-                                }
-                                false
-                            }) {
-                                if let motion::Relation::GamepadAxis(_, axis_value) = relation {
-                                    match axis_value {
-                                        motion::Axis::Y => motion_entry.motion.y = axis_event.value,
-                                        motion::Axis::X => motion_entry.motion.x = axis_event.value,
-                                        _ => (),
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    InputType::Mouse => {
-                        // TODO, properly reset motion after stopping mouse motion
-                        if let Some(mouse_motion) = mouse_motion {
-                            // messy with multiple entries for a type
-                            motion_entry.motion =
-                                mouse_motion / motion::MOUSE_MOTION_SENSITIVITY as f32;
-                        }
-                    }
-                    InputType::Keyboard => {
-                        let mut new_motion = Vec2::ZERO;
-                        for relation in mapping.relations.iter() {
-                            if let motion::Relation::KeyCode(key, val) = relation {
-                                let newval = if keyboard.is_key_pressed(*key) {
-                                    val.get_value()
-                                } else {
-                                    0.0
-                                };
-                                match val {
-                                    motion::Axis::PosY | motion::Axis::NegY => {
-                                        new_motion.y += newval
-                                    }
-                                    motion::Axis::PosX | motion::Axis::NegX => {
-                                        new_motion.x += newval
-                                    }
-                                    _ => (),
-                                }
-                            }
-                        }
-                        motion_entry.motion = new_motion
-                    }
-                }
-            }
+        for action_entry in self.motion_entries.values_mut() {
+            action_entry.set_motion(&axis_events, &mouse_motion, &keyboard);
         }
     }
 
@@ -265,7 +212,7 @@ struct ButtonInputCollection {
 //  ha ting i moduler
 
 pub mod motion {
-    use bevy::prelude::*;
+
     use bevy::{
         input::{
             gamepad::{GamepadAxisChangedEvent, GamepadEvent},
@@ -277,6 +224,7 @@ pub mod motion {
         utils::HashSet,
     };
 
+    #[derive(Clone, Copy)]
     pub enum Axis {
         X,
         Y,
@@ -294,14 +242,36 @@ pub mod motion {
                 _ => 0.0,
             }
         }
-    }
 
-    pub const MOUSE_MOTION_SENSITIVITY: i8 = 30; // Normalizing mouse motion
+        pub fn get_value_v2(&self) -> Vec2 {
+            match self {
+                Self::PosX => Vec2::X,
+                Self::NegX => Vec2::NEG_X,
+                Self::PosY => Vec2::Y,
+                Self::NegY => Vec2::NEG_Y,
+                _ => Vec2::ZERO,
+            }
+        }
+    }
 
     pub enum Relation {
         GamepadAxis(GamepadAxis, Axis),
-        Mouse,
+        Mouse(
+            // acts as sensitivity,
+            // mouse motion is dividied by this
+            f32,
+        ),
         KeyCode(KeyCode, Axis),
+    }
+
+    pub(super) struct KeyCodeSet {
+        pressed: HashSet<KeyCode>,
+    }
+
+    impl KeyCodeSet {
+        pub(super) fn is_key_pressed(&self, key: KeyCode) -> bool {
+            return self.pressed.contains(&key);
+        }
     }
 
     pub struct Entry {
@@ -314,13 +284,81 @@ pub mod motion {
         pub motion: Vec2,
     }
 
-    pub(super) struct Keycode {
-        pressed: HashSet<KeyCode>,
-    }
+    impl ActionEntry {
+        pub(super) fn set_motion(
+            &mut self,
+            axis_events: &Vec<GamepadAxisChangedEvent>,
+            mouse_motion: &Option<Vec2>,
+            keyboard: &KeyCodeSet,
+        ) {
+            for mapping in self.motion_entries.iter() {
+                match mapping.input_type {
+                    super::InputType::Gamepad => Self::set_gamepad_axis_motion(
+                        &mut self.motion,
+                        &mapping.relations,
+                        axis_events,
+                    ),
+                    super::InputType::Keyboard => {
+                        Self::set_keyboard_motion(&mut self.motion, &mapping.relations, keyboard)
+                    }
+                    super::InputType::Mouse => {
+                        Self::set_mouse_motion(&mut self.motion, &mapping.relations, mouse_motion)
+                    }
+                };
+            }
+        }
 
-    impl Keycode {
-        pub(super) fn is_key_pressed(&self, key: KeyCode) -> bool {
-            return self.pressed.contains(&key);
+        // fn set_gamepad_axis_motion(&mut self, relations: &Vec<Relation>, axis_events: &Vec<GamepadAxisChangedEvent>){
+        fn set_gamepad_axis_motion(
+            motion: &mut Vec2,
+            relations: &Vec<Relation>,
+            axis_events: &Vec<GamepadAxisChangedEvent>,
+        ) {
+            for relation in relations {
+                if let Relation::GamepadAxis(relation_gamepad_axis, relation_axis) = relation {
+                    for gamepad_event in axis_events
+                        .iter()
+                        .filter(|a| a.axis == *relation_gamepad_axis)
+                    {
+                        match relation_axis {
+                            Axis::X => motion.x = gamepad_event.value,
+                            Axis::Y => motion.y = gamepad_event.value,
+                            _ => (),
+                        }
+                    }
+                }
+            }
+        }
+
+        fn set_keyboard_motion(
+            // &mut self,
+            motion: &mut Vec2,
+            relations: &Vec<Relation>,
+            pressed_keycodes: &KeyCodeSet,
+        ) {
+            let mut new_motion = Vec2::ZERO;
+            for relation in relations {
+                if let Relation::KeyCode(keycode, axis) = relation {
+                    if pressed_keycodes.is_key_pressed(*keycode) {
+                        new_motion += axis.get_value_v2()
+                    }
+                }
+            }
+            *motion = new_motion;
+        }
+
+        fn set_mouse_motion(
+            // &mut self,
+            motion: &mut Vec2,
+            relations: &Vec<Relation>,
+            mouse_motion: &Option<Vec2>,
+        ) {
+            assert!(relations.len() == 1);
+            if let Relation::Mouse(normalizing_factor) = relations[0] {
+                if let Some(mouse_motion) = mouse_motion {
+                    *motion = mouse_motion / normalizing_factor;
+                }
+            }
         }
     }
 
@@ -348,7 +386,7 @@ pub mod motion {
             }
         };
 
-        let keycodes = Keycode {
+        let keycodes = KeyCodeSet {
             pressed: keyboard
                 .get_pressed()
                 .into_iter()

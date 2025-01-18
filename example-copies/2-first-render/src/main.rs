@@ -24,7 +24,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-){
+) {
     commands.spawn(Camera2d);
 
     let shapes = [
@@ -39,14 +39,17 @@ fn setup(
     ];
     let num_shapes = shapes.len();
 
-    for (i, shape) in shapes.into_iter().enumerate(){
+    for (i, shape) in shapes.into_iter().enumerate() {
         let color = Color::hsl(360. * i as f32 / num_shapes as f32, 0.95, 0.7);
 
         commands.spawn((
             Mesh2d(shape),
             MeshMaterial2d(materials.add(color)),
             Transform::from_xyz(
-                -X_EXTENT / 2. + i as f32 / (num_shapes - 1) as f32 * X_EXTENT, 0.0, 0.0)
+                -X_EXTENT / 2. + i as f32 / (num_shapes - 1) as f32 * X_EXTENT,
+                0.0,
+                0.0,
+            ),
         ));
     }
 
@@ -61,11 +64,11 @@ fn setup(
     ));
 }
 
-fn toggle_wireframe (
+fn toggle_wireframe(
     mut wireframe_config: ResMut<Wireframe2dConfig>,
     keyboard: Res<ButtonInput<KeyCode>>,
-){
-    if keyboard.just_pressed(KeyCode::Space){
+) {
+    if keyboard.just_pressed(KeyCode::Space) {
         wireframe_config.global = !wireframe_config.global;
     }
 }
