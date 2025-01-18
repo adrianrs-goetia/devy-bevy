@@ -1,6 +1,6 @@
 use bevy::core_pipeline::core_2d::graph::input;
 use bevy::input::gamepad::{GamepadAxisChangedEvent, GamepadInput};
-use bevy::input::mouse::MouseButtonInput;
+use bevy::input::mouse::{AccumulatedMouseMotion, MouseButtonInput};
 use bevy::math::vec2;
 use bevy::utils::default;
 use bevy::utils::hashbrown::HashSet;
@@ -24,8 +24,8 @@ pub struct Action(pub &'static str);
 
 #[derive(PartialEq, Eq, Hash)]
 pub enum InputType {
-    Mouse,
     Keyboard,
+    Mouse,
     Gamepad,
 }
 
@@ -76,26 +76,63 @@ impl InputManager {
         }
     }
 
-    fn set_motion_from_gamepad_event(&mut self, axis_event: &GamepadAxisChangedEvent) {
+    fn set_motion(
+        &mut self,
+        axis_events: Vec<GamepadAxisChangedEvent>,
+        mouse_motion: Option<Vec2>,
+        keyboard: KeyCodeMotion,
+    ) {
         for motion_entry in self.motion_entries.values_mut() {
-            let motion = &mut motion_entry.1;
+            // motion_entry.1 = Vec2::new(0., 0.); // reset every frame
 
-            for mapping in motion_entry
-                .0
-                .iter()
-                .filter(|mapping| mapping.0 == InputType::Gamepad)
-            {
-                for relation in mapping.1.iter().filter(|relation| {
-                    if let MotionRelation::GamepadAxis(axis) = relation.1 {
-                        return axis == axis_event.axis;
-                    }
-                    false
-                }) {
-                    match relation.0 {
-                        MotionDirection::Up | MotionDirection::Down => motion.y = axis_event.value,
-                        MotionDirection::Right | MotionDirection::Left => {
-                            motion.x = axis_event.value
+            for mapping in motion_entry.0.iter() {
+                match mapping.0 {
+                    InputType::Gamepad => {
+                        for axis_event in axis_events.iter() {
+                            for relation in mapping.1.iter().filter(|relation| {
+                                if let MotionRelation::GamepadAxis(axis) = relation.1 {
+                                    return axis == axis_event.axis;
+                                }
+                                false
+                            }) {
+                                match relation.0 {
+                                    MotionDirection::Up | MotionDirection::Down => {
+                                        motion_entry.1.y = axis_event.value
+                                    }
+                                    MotionDirection::Right | MotionDirection::Left => {
+                                        motion_entry.1.x = axis_event.value
+                                    }
+                                }
+                            }
                         }
+                    }
+                    InputType::Mouse => {
+                        // TODO, properly reset motion after stopping mouse motion
+                        if let Some(mouse_motion) = mouse_motion {
+                            // messy with multiple entries for a type
+                            motion_entry.1 = mouse_motion / MOUSE_MOTION_NORMALIZATION as f32;
+                        }
+                    }
+                    InputType::Keyboard => {
+                        let mut new_motion = Vec2::ZERO;
+                        for relation in mapping.1.iter() {
+                            if let MotionRelation::KeyCode(key, val) = relation.1 {
+                                let newval = if keyboard.is_key_pressed(key) {
+                                    val as f32
+                                } else {
+                                    0.0
+                                };
+                                match relation.0 {
+                                    MotionDirection::Up | MotionDirection::Down => {
+                                        new_motion.y += newval
+                                    }
+                                    MotionDirection::Right | MotionDirection::Left => {
+                                        new_motion.x += newval
+                                    }
+                                }
+                            }
+                        }
+                        motion_entry.1 = new_motion
                     }
                 }
             }
@@ -140,10 +177,6 @@ impl InputManager {
             for b in buttoninput.released.extract_if(|b| *b == button) {
                 buttoninput.just_pressed.insert(b);
             }
-
-            // for b in buttoninput.just_pressed.extract_if(|b| *b == button) {
-            //     buttoninput.pressed.insert(b);
-            // }
         }
     }
     fn move_prev_frame_just_pressed(&mut self) {
@@ -209,15 +242,38 @@ fn read_button_input(
 }
 
 fn read_motion(
-    // mouse:
+    mouse_motion: Res<AccumulatedMouseMotion>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mut gamepad: EventReader<GamepadEvent>,
     mut input_manager: ResMut<InputManager>,
 ) {
-    for event in gamepad.read() {
-        if let GamepadEvent::Axis(event) = event {
-            input_manager.set_motion_from_gamepad_event(event);
+    let gamepad_axis_events = {
+        let mut events = Vec::<GamepadAxisChangedEvent>::new();
+        for event in gamepad.read().into_iter() {
+            if let GamepadEvent::Axis(event) = event {
+                events.push(event.clone());
+            }
         }
-    }
+        events
+    };
+
+    let mouse_motion = {
+        if mouse_motion.delta != Vec2::ZERO {
+            Some(mouse_motion.delta)
+        } else {
+            None
+        }
+    };
+
+    let keycodes = KeyCodeMotion {
+        pressed: keyboard
+            .get_pressed()
+            .into_iter()
+            .cloned()
+            .collect::<HashSet<KeyCode>>(),
+    };
+
+    input_manager.set_motion(gamepad_axis_events, mouse_motion, keycodes);
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -243,6 +299,7 @@ pub enum MotionDirection {
     Left,
 }
 
+const MOUSE_MOTION_NORMALIZATION: i8 = 30;
 pub enum MouseMotionDirection {
     Up,
     Down,
@@ -252,9 +309,20 @@ pub enum MouseMotionDirection {
 
 pub enum MotionRelation {
     GamepadAxis(GamepadAxis),
-    Mouse(MouseMotionDirection, i8),
+    Mouse(MouseMotionDirection),
+    KeyCode(KeyCode, i8),
 }
 
 pub struct MotionDirectionRelation(pub MotionDirection, pub MotionRelation);
 pub struct MotionRegistryEntry(pub InputType, pub [MotionDirectionRelation; 4]);
 struct MotionEntry(Vec<MotionRegistryEntry>, Vec2);
+
+struct KeyCodeMotion {
+    pressed: HashSet<KeyCode>,
+}
+
+impl KeyCodeMotion {
+    fn is_key_pressed(&self, key: KeyCode) -> bool {
+        return self.pressed.contains(&key);
+    }
+}

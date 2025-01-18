@@ -4,7 +4,7 @@ use bevy::{picking::pointer::PointerInteraction, prelude::*};
 use core::exit_game::ExitGamePlugin;
 use core::input_manager::{
     Action, Button, InputManager, InputManagerPlugin, MotionDirection, MotionDirectionRelation,
-    MotionRegistryEntry, MotionRelation,
+    MotionRegistryEntry, MotionRelation, MouseMotionDirection,
 };
 
 const BOXY_PATH: &str = "models/boxy.glb";
@@ -43,27 +43,92 @@ fn register_input(mut im: ResMut<InputManager>) {
 
     im.register_motion(
         MOVEMENT,
-        vec![MotionRegistryEntry(
-            core::input_manager::InputType::Gamepad,
-            [
-                MotionDirectionRelation(
-                    MotionDirection::Up,
-                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickY),
-                ),
-                MotionDirectionRelation(
-                    MotionDirection::Down,
-                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickY),
-                ),
-                MotionDirectionRelation(
-                    MotionDirection::Right,
-                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
-                ),
-                MotionDirectionRelation(
-                    MotionDirection::Left,
-                    MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
-                ),
-            ],
-        )],
+        vec![
+            MotionRegistryEntry(
+                core::input_manager::InputType::Gamepad,
+                [
+                    MotionDirectionRelation(
+                        MotionDirection::Up,
+                        MotionRelation::GamepadAxis(GamepadAxis::LeftStickY),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Down,
+                        MotionRelation::GamepadAxis(GamepadAxis::LeftStickY),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Right,
+                        MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Left,
+                        MotionRelation::GamepadAxis(GamepadAxis::LeftStickX),
+                    ),
+                ],
+            ),
+            MotionRegistryEntry(
+                core::input_manager::InputType::Mouse,
+                [
+                    MotionDirectionRelation(
+                        MotionDirection::Up,
+                        MotionRelation::Mouse(MouseMotionDirection::Up),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Down,
+                        MotionRelation::Mouse(MouseMotionDirection::Down),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Right,
+                        MotionRelation::Mouse(MouseMotionDirection::Right),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Left,
+                        MotionRelation::Mouse(MouseMotionDirection::Left),
+                    ),
+                ],
+            ),
+            MotionRegistryEntry(
+                core::input_manager::InputType::Keyboard,
+                [
+                    MotionDirectionRelation(
+                        MotionDirection::Up,
+                        MotionRelation::KeyCode(KeyCode::KeyW, 1),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Down,
+                        MotionRelation::KeyCode(KeyCode::KeyS, -1),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Right,
+                        MotionRelation::KeyCode(KeyCode::KeyD, 1),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Left,
+                        MotionRelation::KeyCode(KeyCode::KeyA, -1),
+                    ),
+                ],
+            ),
+            MotionRegistryEntry(
+                core::input_manager::InputType::Keyboard,
+                [
+                    MotionDirectionRelation(
+                        MotionDirection::Up,
+                        MotionRelation::KeyCode(KeyCode::KeyJ, 1),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Down,
+                        MotionRelation::KeyCode(KeyCode::KeyK, -1),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Right,
+                        MotionRelation::KeyCode(KeyCode::KeyL, 1),
+                    ),
+                    MotionDirectionRelation(
+                        MotionDirection::Left,
+                        MotionRelation::KeyCode(KeyCode::KeyH, -1),
+                    ),
+                ],
+            ),
+        ],
     );
 }
 
