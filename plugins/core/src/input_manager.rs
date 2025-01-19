@@ -1,18 +1,20 @@
-use bevy::input::gamepad::GamepadAxisChangedEvent;
-use bevy::input::mouse::MouseButtonInput;
+use bevy::input::gamepad::{GamepadAxisChangedEvent, GamepadEvent};
+use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::prelude::*;
 use bevy::utils::hashbrown::HashSet;
-use bevy::{
-    input::{gamepad::GamepadEvent, ButtonState},
-    prelude::*,
-};
 use std::collections::HashMap;
 
 pub struct InputManagerPlugin;
-
 impl Plugin for InputManagerPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(InputManager::default())
-            .add_systems(Update, (read_button_input, motion::read_motion));
+        app.insert_resource(InputManager::default()).add_systems(
+            Update,
+            (
+                determine_input_mode,
+                button::read_button_input,
+                motion::read_motion_input,
+            ),
+        );
     }
 }
 
@@ -26,17 +28,84 @@ pub enum InputType {
     Gamepad,
 }
 
-/// Manager
+impl InputType {
+    fn is_mode(&self, mode: InputMode) -> bool {
+        match mode {
+            InputMode::MouseAndKeyboard => *self == Self::Keyboard || *self == Self::Mouse,
+            InputMode::Gamepad => *self == Self::Gamepad,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum InputMode {
+    MouseAndKeyboard,
+    Gamepad, // xbox gamepad assumed
+}
+
+#[derive(Debug, Clone, Component)]
+#[allow(dead_code)]
+pub struct InputModeChanged(InputMode);
+
+impl Event for InputModeChanged {
+    // https://bevyengine.org/examples/ecs-entity-component-system/observer-propagation/
+    type Traversal = &'static Parent;
+    const AUTO_PROPAGATE: bool = true;
+}
+
+// determine input mode an observable trigger on change
+fn determine_input_mode(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
+    gamepad_events: EventReader<GamepadEvent>,
+
+    mut input_manager: ResMut<InputManager>,
+    mut commands: Commands,
+) {
+    let mut input_mode: Option<InputMode> = None;
+
+    if keyboard.get_pressed().len() != 0
+        || mouse.get_pressed().len() != 0
+        || mouse_motion.delta != Vec2::ZERO
+    {
+        input_mode = Some(InputMode::MouseAndKeyboard);
+    }
+
+    // gamepad mode takes priority over MnK
+    if gamepad_events.len() != 0 {
+        input_mode = Some(InputMode::Gamepad);
+    }
+
+    if let Some(input_mode) = input_mode {
+        if input_manager.change_input_mode(input_mode) {
+            commands.trigger(InputModeChanged(input_mode));
+        }
+    }
+}
+
 #[derive(Resource)]
 pub struct InputManager {
-    button_entries: HashMap<Action, ButtonInputCollection>, // TODO input context stack
+    current_input_mode: InputMode,
+    button_entries: HashMap<Action, button::ActionEntry>,
     motion_entries: HashMap<Action, motion::ActionEntry>,
+}
+
+impl InputManager {
+    pub(crate) fn change_input_mode(&mut self, new_mode: InputMode) -> bool {
+        if !self.current_input_mode.eq(&new_mode) {
+            self.current_input_mode = new_mode;
+            return true;
+        }
+        false
+    }
 }
 
 impl Default for InputManager {
     fn default() -> Self {
         Self {
-            button_entries: HashMap::<Action, ButtonInputCollection>::new(),
+            current_input_mode: InputMode::MouseAndKeyboard,
+            button_entries: HashMap::<Action, button::ActionEntry>::new(),
             motion_entries: HashMap::<Action, motion::ActionEntry>::new(),
         }
     }
@@ -89,17 +158,22 @@ impl InputManager {
         keyboard: motion::KeyCodeSet,
     ) {
         for action_entry in self.motion_entries.values_mut() {
-            action_entry.set_motion(&axis_events, &mouse_motion, &keyboard);
+            action_entry.set_motion(
+                self.current_input_mode,
+                &axis_events,
+                &mouse_motion,
+                &keyboard,
+            );
         }
     }
 
-    pub fn register_button_events(&mut self, action: Action, buttons: Vec<Button>) {
+    pub fn register_button_events(&mut self, action: Action, buttons: Vec<button::Variant>) {
         self.button_entries.insert(
             action,
-            ButtonInputCollection {
-                just_pressed: HashSet::<Button>::new(),
-                pressed: HashSet::<Button>::new(),
-                just_released: HashSet::<Button>::new(),
+            button::ActionEntry {
+                just_pressed: HashSet::<button::Variant>::new(),
+                pressed: HashSet::<button::Variant>::new(),
+                just_released: HashSet::<button::Variant>::new(),
                 released: buttons.into_iter().collect::<HashSet<_>>(),
             },
         );
@@ -126,7 +200,7 @@ impl InputManager {
         false
     }
 
-    fn set_button_pressed(&mut self, button: Button) {
+    fn set_button_pressed(&mut self, button: button::Variant) {
         for buttoninput in self.button_entries.values_mut() {
             for b in buttoninput.released.extract_if(|b| *b == button) {
                 buttoninput.just_pressed.insert(b);
@@ -141,7 +215,7 @@ impl InputManager {
         }
     }
 
-    fn set_button_released(&mut self, button: Button) {
+    fn set_button_released(&mut self, button: button::Variant) {
         for buttoninput in self.button_entries.values_mut() {
             for b in buttoninput.pressed.extract_if(|b| *b == button) {
                 buttoninput.just_released.insert(b);
@@ -158,61 +232,70 @@ impl InputManager {
     }
 }
 
-fn read_button_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut mouse: EventReader<MouseButtonInput>,
-    mut gamepad: EventReader<GamepadEvent>,
-    mut input_manager: ResMut<InputManager>,
-) {
-    input_manager.move_prev_frame_just_pressed();
-    input_manager.move_prev_frame_just_released();
+pub mod button {
+    use bevy::{
+        input::{gamepad::GamepadEvent, mouse::MouseButtonInput, ButtonState},
+        prelude::*,
+        utils::HashSet,
+    };
 
-    for key in keyboard.get_just_pressed() {
-        input_manager.set_button_pressed(Button::Keyboard(*key));
-    }
-    for key in keyboard.get_just_released() {
-        input_manager.set_button_released(Button::Keyboard(*key));
+    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+    pub enum Variant {
+        Keyboard(KeyCode),
+        Mouse(MouseButton),
+        Gamepad(GamepadButton),
     }
 
-    for event in mouse.read() {
-        match event.state {
-            ButtonState::Pressed => input_manager.set_button_pressed(Button::Mouse(event.button)),
-            ButtonState::Released => input_manager.set_button_released(Button::Mouse(event.button)),
+    pub(super) struct ActionEntry {
+        pub just_pressed: HashSet<Variant>,
+        pub pressed: HashSet<Variant>,
+        pub just_released: HashSet<Variant>,
+        pub released: HashSet<Variant>,
+    }
+
+    pub(super) fn read_button_input(
+        keyboard: Res<ButtonInput<KeyCode>>,
+        mut mouse: EventReader<MouseButtonInput>,
+        mut gamepad: EventReader<GamepadEvent>,
+        mut input_manager: ResMut<super::InputManager>,
+    ) {
+        input_manager.move_prev_frame_just_pressed();
+        input_manager.move_prev_frame_just_released();
+
+        for key in keyboard.get_just_pressed() {
+            input_manager.set_button_pressed(Variant::Keyboard(*key));
         }
-    }
+        for key in keyboard.get_just_released() {
+            input_manager.set_button_released(Variant::Keyboard(*key));
+        }
 
-    for event in gamepad.read() {
-        match event {
-            GamepadEvent::Button(button) => {
-                if button.state.is_pressed() {
-                    input_manager.set_button_pressed(Button::Gamepad(button.button));
-                } else {
-                    input_manager.set_button_released(Button::Gamepad(button.button));
+        for event in mouse.read() {
+            match event.state {
+                ButtonState::Pressed => {
+                    input_manager.set_button_pressed(Variant::Mouse(event.button))
+                }
+                ButtonState::Released => {
+                    input_manager.set_button_released(Variant::Mouse(event.button))
                 }
             }
-            _ => (),
+        }
+
+        for event in gamepad.read() {
+            match event {
+                GamepadEvent::Button(button) => {
+                    if button.state.is_pressed() {
+                        input_manager.set_button_pressed(Variant::Gamepad(button.button));
+                    } else {
+                        input_manager.set_button_released(Variant::Gamepad(button.button));
+                    }
+                }
+                _ => (),
+            }
         }
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub enum Button {
-    Keyboard(KeyCode),
-    Mouse(MouseButton),
-    Gamepad(GamepadButton),
-}
-
-struct ButtonInputCollection {
-    just_pressed: HashSet<Button>,
-    pressed: HashSet<Button>,
-    just_released: HashSet<Button>,
-    released: HashSet<Button>,
-}
-
-//  ha ting i moduler
-
 pub mod motion {
-
     use bevy::{
         input::{
             gamepad::{GamepadAxisChangedEvent, GamepadEvent},
@@ -257,8 +340,7 @@ pub mod motion {
     pub enum Relation {
         GamepadAxis(GamepadAxis, Axis),
         Mouse(
-            // acts as sensitivity,
-            // mouse motion is dividied by this
+            // acts as sensitivity, mouse motion is dividied by this
             f32,
         ),
         KeyCode(KeyCode, Axis),
@@ -266,11 +348,20 @@ pub mod motion {
 
     pub(super) struct KeyCodeSet {
         pressed: HashSet<KeyCode>,
+        released: HashSet<KeyCode>,
     }
 
     impl KeyCodeSet {
-        pub(super) fn is_key_pressed(&self, key: KeyCode) -> bool {
+        fn is_key_pressed(&self, key: KeyCode) -> bool {
             return self.pressed.contains(&key);
+        }
+
+        fn is_key_released(&self, key: KeyCode) -> bool {
+            return self.released.contains(&key);
+        }
+
+        fn is_empty(&self) -> bool {
+            return self.pressed.is_empty() && self.released.is_empty();
         }
     }
 
@@ -287,11 +378,16 @@ pub mod motion {
     impl ActionEntry {
         pub(super) fn set_motion(
             &mut self,
+            input_mode_priority: super::InputMode,
             axis_events: &Vec<GamepadAxisChangedEvent>,
             mouse_motion: &Option<Vec2>,
             keyboard: &KeyCodeSet,
         ) {
-            for mapping in self.motion_entries.iter() {
+            for mapping in self
+                .motion_entries
+                .iter()
+                .filter(|m| m.input_type.is_mode(input_mode_priority))
+            {
                 match mapping.input_type {
                     super::InputType::Gamepad => Self::set_gamepad_axis_motion(
                         &mut self.motion,
@@ -308,7 +404,6 @@ pub mod motion {
             }
         }
 
-        // fn set_gamepad_axis_motion(&mut self, relations: &Vec<Relation>, axis_events: &Vec<GamepadAxisChangedEvent>){
         fn set_gamepad_axis_motion(
             motion: &mut Vec2,
             relations: &Vec<Relation>,
@@ -331,16 +426,26 @@ pub mod motion {
         }
 
         fn set_keyboard_motion(
-            // &mut self,
             motion: &mut Vec2,
             relations: &Vec<Relation>,
             pressed_keycodes: &KeyCodeSet,
         ) {
+            if pressed_keycodes.is_empty() {
+                return;
+            }
+
             let mut new_motion = Vec2::ZERO;
             for relation in relations {
                 if let Relation::KeyCode(keycode, axis) = relation {
                     if pressed_keycodes.is_key_pressed(*keycode) {
                         new_motion += axis.get_value_v2()
+                    }
+                    if pressed_keycodes.is_key_released(*keycode) {
+                        match axis {
+                            Axis::PosY | Axis::NegY => new_motion.y = 0.0,
+                            Axis::PosX | Axis::NegX => new_motion.x = 0.0,
+                            _ => (),
+                        }
                     }
                 }
             }
@@ -348,7 +453,6 @@ pub mod motion {
         }
 
         fn set_mouse_motion(
-            // &mut self,
             motion: &mut Vec2,
             relations: &Vec<Relation>,
             mouse_motion: &Option<Vec2>,
@@ -362,7 +466,7 @@ pub mod motion {
         }
     }
 
-    pub(super) fn read_motion(
+    pub(super) fn read_motion_input(
         mouse_motion: Res<AccumulatedMouseMotion>,
         keyboard: Res<ButtonInput<KeyCode>>,
         mut gamepad: EventReader<GamepadEvent>,
@@ -389,6 +493,11 @@ pub mod motion {
         let keycodes = KeyCodeSet {
             pressed: keyboard
                 .get_pressed()
+                .into_iter()
+                .cloned()
+                .collect::<HashSet<KeyCode>>(),
+            released: keyboard
+                .get_just_released()
                 .into_iter()
                 .cloned()
                 .collect::<HashSet<KeyCode>>(),

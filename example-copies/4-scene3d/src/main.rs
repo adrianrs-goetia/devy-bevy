@@ -1,8 +1,12 @@
 use std::{f32::consts::PI, time::Duration};
 
+// use bevy::core::FrameCount;
 use bevy::{picking::pointer::PointerInteraction, prelude::*};
+
 use core::exit_game::ExitGamePlugin;
-use core::input_manager::{motion, Action, Button, InputManager, InputManagerPlugin};
+use core::input_manager::{
+    button, motion, Action, InputManager, InputManagerPlugin, InputModeChanged,
+};
 
 const BOXY_PATH: &str = "models/boxy.glb";
 
@@ -21,6 +25,7 @@ fn main() {
             Update,
             (draw_cursor, rotate_boxy, keyboard_animation_control),
         )
+        .add_observer(get_input_mode_change_trigger)
         .run();
 }
 
@@ -31,23 +36,16 @@ fn register_input(mut im: ResMut<InputManager>) {
     im.register_button_events(
         LEFT,
         vec![
-            Button::Keyboard(KeyCode::KeyA),
-            Button::Mouse(MouseButton::Left),
-            Button::Keyboard(KeyCode::ArrowLeft),
-            Button::Gamepad(GamepadButton::East),
+            button::Variant::Keyboard(KeyCode::KeyA),
+            button::Variant::Mouse(MouseButton::Left),
+            button::Variant::Keyboard(KeyCode::ArrowLeft),
+            button::Variant::Gamepad(GamepadButton::East),
         ],
     );
 
     im.register_motion(
         MOVEMENT,
         vec![
-            motion::Entry {
-                input_type: core::input_manager::InputType::Gamepad,
-                relations: vec![
-                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickY, motion::Axis::Y),
-                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickX, motion::Axis::X),
-                ],
-            },
             motion::Entry {
                 input_type: core::input_manager::InputType::Keyboard,
                 relations: vec![
@@ -61,11 +59,26 @@ fn register_input(mut im: ResMut<InputManager>) {
                 input_type: core::input_manager::InputType::Mouse,
                 relations: vec![motion::Relation::Mouse(20.)],
             },
+            motion::Entry {
+                input_type: core::input_manager::InputType::Gamepad,
+                relations: vec![
+                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickY, motion::Axis::Y),
+                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickX, motion::Axis::X),
+                ],
+            },
         ],
     );
 }
 
-fn read_im_input(im: Res<InputManager>) {
+fn get_input_mode_change_trigger(trigger: Trigger<InputModeChanged>) {
+    let event = trigger.event();
+    println!("TRIGGER input_mode_change: {:?}", event);
+}
+
+fn read_im_input(
+    im: Res<InputManager>,
+    // fc: Res<FrameCount>
+) {
     if im.is_action_just_pressed(LEFT) {
         println!(" !!! LEFT IS JUST PRESSED !!! ")
     }
@@ -73,8 +86,8 @@ fn read_im_input(im: Res<InputManager>) {
         println!(" LEFT REALEASED ")
     }
 
-    let motion = im.get_motion(MOVEMENT);
-    println!("motion: {}", motion);
+    // let motion = im.get_motion(MOVEMENT);
+    // println!("{}, motion: {}", fc.0, motion);
 }
 
 #[derive(Component)]
