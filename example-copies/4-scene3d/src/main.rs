@@ -3,21 +3,13 @@ use std::{f32::consts::PI, time::Duration};
 use bevy::core::FrameCount;
 use bevy::{picking::pointer::PointerInteraction, prelude::*};
 
-use core::exit_game::ExitGamePlugin;
-use core::input_manager::{
-    button, motion, Action, InputManager, InputManagerPlugin, InputModeChanged,
-};
+use core::input_manager::{button, motion, Action, InputManager, InputModeChanged};
 
 const BOXY_PATH: &str = "models/boxy.glb";
 
 fn main() {
     App::new()
-        .add_plugins((
-            DefaultPlugins,
-            ExitGamePlugin,
-            InputManagerPlugin,
-            MeshPickingPlugin,
-        ))
+        .add_plugins((DefaultPlugins, core::CorePlugin, MeshPickingPlugin))
         .insert_resource(GroundEntity::default())
         .add_systems(Startup, (setup, register_input))
         .add_systems(Update, (setup_once_loaded, read_input))
@@ -35,7 +27,7 @@ static MOVEMENT: Action = Action("movement");
 static CAMERA: Action = Action("camera");
 
 fn register_input(mut im: ResMut<InputManager>) {
-    im.register_button_events(
+    im.register_action_button(
         ACTIVATE,
         vec![
             button::Variant::Keyboard(KeyCode::KeyE),
@@ -43,7 +35,7 @@ fn register_input(mut im: ResMut<InputManager>) {
         ],
     );
 
-    im.register_button_events(
+    im.register_action_button(
         SPAWN_SHROOM,
         vec![
             button::Variant::Keyboard(KeyCode::Space),
@@ -51,7 +43,7 @@ fn register_input(mut im: ResMut<InputManager>) {
         ],
     );
 
-    im.register_motion(
+    im.register_action_motion(
         MOVEMENT,
         vec![
             motion::Entry {
@@ -73,7 +65,7 @@ fn register_input(mut im: ResMut<InputManager>) {
         ],
     );
 
-    im.register_motion(
+    im.register_action_motion(
         CAMERA,
         vec![
             motion::Entry {

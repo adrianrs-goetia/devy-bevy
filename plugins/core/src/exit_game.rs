@@ -1,15 +1,17 @@
 use bevy::{
     app::AppExit,
-    input::{gamepad::GamepadEvent, keyboard::KeyboardInput},
     prelude::*,
 };
+
+use crate::input_manager as input;
 
 pub struct ExitGamePlugin;
 
 impl Plugin for ExitGamePlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ExitGameEvent>()
-            .add_systems(Update, (keyboard_input, gamepad_input))
+            .add_systems(Startup, register_input)
+            .add_systems(Update, read_input)
             .add_systems(Last, exit_game);
     }
 }
@@ -23,34 +25,21 @@ fn exit_game(ev: EventReader<ExitGameEvent>, mut ev_exit: EventWriter<AppExit>) 
     }
 }
 
-fn keyboard_input(
-    mut input_events: EventReader<KeyboardInput>,
-    mut ev: EventWriter<ExitGameEvent>,
-) {
-    for input in input_events.read() {
-        if input.state.is_pressed() {
-            match &input.key_code {
-                KeyCode::Escape | KeyCode::CapsLock => {
-                    ev.send(ExitGameEvent);
-                }
-                _ => continue,
-            }
-        }
-    }
+static EXIT_GAME: input::Action = input::Action("exit_game");
+
+fn register_input(mut im: ResMut<input::InputManager>) {
+    im.register_action_button(
+        EXIT_GAME,
+        vec![
+            input::button::Variant::Keyboard(KeyCode::Escape),
+            input::button::Variant::Keyboard(KeyCode::CapsLock),
+            input::button::Variant::Gamepad(GamepadButton::Select),
+        ],
+    );
 }
 
-fn gamepad_input(
-    mut gamepad_events: EventReader<GamepadEvent>,
-    mut ev: EventWriter<ExitGameEvent>,
-) {
-    for event in gamepad_events.read() {
-        match event {
-            GamepadEvent::Button(button) => {
-                if button.button == GamepadButton::Select && button.state.is_pressed() {
-                    ev.send(ExitGameEvent);
-                }
-            }
-            _ => continue,
-        }
+fn read_input(im: Res<input::InputManager>, mut ev: EventWriter<ExitGameEvent>) {
+    if im.is_action_just_pressed(EXIT_GAME) {
+        ev.send(ExitGameEvent);
     }
 }

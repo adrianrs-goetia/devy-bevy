@@ -8,7 +8,7 @@ pub struct InputManagerPlugin;
 impl Plugin for InputManagerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(InputManager::default()).add_systems(
-            Update,
+            PreUpdate,
             (
                 determine_input_mode,
                 button::read_button_input,
@@ -116,7 +116,7 @@ impl InputManager {
      * Motions are applied in the order they come in, and later motion entries
      * will overwrite previous ones
      */
-    pub fn register_motion(&mut self, action: Action, entries: Vec<motion::Entry>) {
+    pub fn register_action_motion(&mut self, action: Action, entries: Vec<motion::Entry>) {
         self.motion_entries.insert(
             action,
             motion::ActionEntry {
@@ -128,12 +128,12 @@ impl InputManager {
 
     pub fn get_motion(&self, action: Action) -> Vec2 {
         if let Some(entry) = self.motion_entries.get(&action) {
-            if entry.motion.length() > 1.0{
+            if entry.motion.length() > 1.0 {
                 if let Some(normal) = entry.motion.try_normalize() {
-                    return normal
+                    return normal;
                 }
             }
-            return entry.motion
+            return entry.motion;
         }
         unreachable!("Missing action: {}", action.0)
     }
@@ -156,7 +156,7 @@ impl InputManager {
         }
     }
 
-    pub fn register_button_events(&mut self, action: Action, buttons: Vec<button::Variant>) {
+    pub fn register_action_button(&mut self, action: Action, buttons: Vec<button::Variant>) {
         self.button_entries.insert(
             action,
             button::ActionEntry {
@@ -494,12 +494,7 @@ pub mod motion {
 
         let mode = input_manager.current_input_mode;
         for action_entry in input_manager.motion_entries.values_mut() {
-            action_entry.set_motion(
-                mode,
-                &gamepad_axis_events,
-                &mouse_motion,
-                &keycodes,
-            );
+            action_entry.set_motion(mode, &gamepad_axis_events, &mouse_motion, &keycodes);
         }
     }
 }
