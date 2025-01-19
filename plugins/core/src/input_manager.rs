@@ -21,7 +21,7 @@ impl Plugin for InputManagerPlugin {
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Action(pub &'static str);
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum InputType {
     Keyboard,
     Mouse,
@@ -120,7 +120,11 @@ impl InputManager {
         self.motion_entries.insert(
             action,
             motion::ActionEntry {
-                motion_entries: entries,
+                motion_entries: entries
+                    .iter()
+                    .map(|e| (e.clone(), false)) // Disgusting clone
+                    .into_iter()
+                    .collect(),
                 motion: Vec2::new(0., 0.),
             },
         );
@@ -326,6 +330,7 @@ pub mod motion {
         }
     }
 
+    #[derive(Clone)]
     pub enum Relation {
         GamepadAxis(GamepadAxis, Axis),
         Mouse(
@@ -354,13 +359,19 @@ pub mod motion {
         }
     }
 
+    #[derive(Clone)]
     pub struct Entry {
         pub input_type: super::InputType,
         pub relations: Vec<Relation>,
     }
 
     pub struct ActionEntry {
-        pub motion_entries: Vec<Entry>,
+        /**
+         * bool -- motion_last_frame
+         * If there was motion last frame and none this frame,
+         * then the entry might want to overwrite the motion vector to Vec2::ZERO
+         */
+        pub motion_entries: Vec<(Entry, bool)>,
         pub motion: Vec2,
     }
 
@@ -372,10 +383,10 @@ pub mod motion {
             mouse_motion: &Option<Vec2>,
             keyboard: &KeyCodeSet,
         ) {
-            for mapping in self
+            for (mapping, motion_last_frame) in self
                 .motion_entries
-                .iter()
-                .filter(|m| m.input_type.is_mode(input_mode_priority))
+                .iter_mut()
+                .filter(|(m, _)| m.input_type.is_mode(input_mode_priority))
             {
                 match mapping.input_type {
                     super::InputType::Gamepad => Self::set_gamepad_axis_motion(
@@ -387,7 +398,13 @@ pub mod motion {
                         Self::set_keyboard_motion(&mut self.motion, &mapping.relations, keyboard)
                     }
                     super::InputType::Mouse => {
-                        Self::set_mouse_motion(&mut self.motion, &mapping.relations, mouse_motion)
+                        Self::set_mouse_motion(
+                            &mut self.motion,
+                            *motion_last_frame,
+                            &mapping.relations,
+                            mouse_motion,
+                        );
+                        *motion_last_frame = mouse_motion.is_some();
                     }
                 };
             }
@@ -443,13 +460,16 @@ pub mod motion {
 
         fn set_mouse_motion(
             motion: &mut Vec2,
+            motion_last_frame: bool,
             relations: &Vec<Relation>,
             mouse_motion: &Option<Vec2>,
         ) {
             assert!(relations.len() == 1);
             if let Relation::Mouse(normalizing_factor) = relations[0] {
                 if let Some(mouse_motion) = mouse_motion {
-                    *motion = mouse_motion / normalizing_factor;
+                    *motion = mouse_motion / normalizing_factor
+                } else if motion_last_frame {
+                    *motion = Vec2::ZERO
                 }
             }
         }
