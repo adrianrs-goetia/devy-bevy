@@ -1,4 +1,4 @@
-use bevy::input::gamepad::{GamepadAxisChangedEvent, GamepadEvent};
+use bevy::input::gamepad::GamepadEvent;
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::utils::hashbrown::HashSet;
@@ -128,7 +128,12 @@ impl InputManager {
 
     pub fn get_motion(&self, action: Action) -> Vec2 {
         if let Some(entry) = self.motion_entries.get(&action) {
-            return entry.motion;
+            if entry.motion.length() > 1.0{
+                if let Some(normal) = entry.motion.try_normalize() {
+                    return normal
+                }
+            }
+            return entry.motion
         }
         unreachable!("Missing action: {}", action.0)
     }
@@ -148,22 +153,6 @@ impl InputManager {
             x: v2.x,
             y: v2.y,
             z: 0.0,
-        }
-    }
-
-    fn set_motion(
-        &mut self,
-        axis_events: Vec<GamepadAxisChangedEvent>,
-        mouse_motion: Option<Vec2>,
-        keyboard: motion::KeyCodeSet,
-    ) {
-        for action_entry in self.motion_entries.values_mut() {
-            action_entry.set_motion(
-                self.current_input_mode,
-                &axis_events,
-                &mouse_motion,
-                &keyboard,
-            );
         }
     }
 
@@ -503,6 +492,14 @@ pub mod motion {
                 .collect::<HashSet<KeyCode>>(),
         };
 
-        input_manager.set_motion(gamepad_axis_events, mouse_motion, keycodes);
+        let mode = input_manager.current_input_mode;
+        for action_entry in input_manager.motion_entries.values_mut() {
+            action_entry.set_motion(
+                mode,
+                &gamepad_axis_events,
+                &mouse_motion,
+                &keycodes,
+            );
+        }
     }
 }

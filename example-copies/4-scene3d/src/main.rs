@@ -1,6 +1,6 @@
 use std::{f32::consts::PI, time::Duration};
 
-// use bevy::core::FrameCount;
+use bevy::core::FrameCount;
 use bevy::{picking::pointer::PointerInteraction, prelude::*};
 
 use core::exit_game::ExitGamePlugin;
@@ -20,7 +20,7 @@ fn main() {
         ))
         .insert_resource(GroundEntity::default())
         .add_systems(Startup, (setup, register_input))
-        .add_systems(Update, (setup_once_loaded, read_im_input))
+        .add_systems(Update, (setup_once_loaded, read_input))
         .add_systems(
             Update,
             (draw_cursor, rotate_boxy, keyboard_animation_control),
@@ -29,17 +29,25 @@ fn main() {
         .run();
 }
 
-static LEFT: Action = Action("left");
+static ACTIVATE: Action = Action("activate");
+static SPAWN_SHROOM: Action = Action("spawn_shroom");
 static MOVEMENT: Action = Action("movement");
+static CAMERA: Action = Action("camera");
 
 fn register_input(mut im: ResMut<InputManager>) {
     im.register_button_events(
-        LEFT,
+        ACTIVATE,
         vec![
-            button::Variant::Keyboard(KeyCode::KeyA),
-            button::Variant::Mouse(MouseButton::Left),
-            button::Variant::Keyboard(KeyCode::ArrowLeft),
-            button::Variant::Gamepad(GamepadButton::East),
+            button::Variant::Keyboard(KeyCode::KeyE),
+            button::Variant::Gamepad(GamepadButton::South),
+        ],
+    );
+
+    im.register_button_events(
+        SPAWN_SHROOM,
+        vec![
+            button::Variant::Keyboard(KeyCode::Space),
+            button::Variant::Gamepad(GamepadButton::North),
         ],
     );
 
@@ -56,14 +64,36 @@ fn register_input(mut im: ResMut<InputManager>) {
                 ],
             },
             motion::Entry {
+                input_type: core::input_manager::InputType::Gamepad,
+                relations: vec![
+                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickY, motion::Axis::Y),
+                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickX, motion::Axis::X),
+                ],
+            },
+        ],
+    );
+
+    im.register_motion(
+        CAMERA,
+        vec![
+            motion::Entry {
+                input_type: core::input_manager::InputType::Keyboard,
+                relations: vec![
+                    motion::Relation::KeyCode(KeyCode::KeyK, motion::Axis::PosY),
+                    motion::Relation::KeyCode(KeyCode::KeyJ, motion::Axis::NegY),
+                    motion::Relation::KeyCode(KeyCode::KeyL, motion::Axis::PosX),
+                    motion::Relation::KeyCode(KeyCode::KeyH, motion::Axis::NegX),
+                ],
+            },
+            motion::Entry {
                 input_type: core::input_manager::InputType::Mouse,
                 relations: vec![motion::Relation::Mouse(20.)],
             },
             motion::Entry {
                 input_type: core::input_manager::InputType::Gamepad,
                 relations: vec![
-                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickY, motion::Axis::Y),
-                    motion::Relation::GamepadAxis(GamepadAxis::LeftStickX, motion::Axis::X),
+                    motion::Relation::GamepadAxis(GamepadAxis::RightStickY, motion::Axis::Y),
+                    motion::Relation::GamepadAxis(GamepadAxis::RightStickX, motion::Axis::X),
                 ],
             },
         ],
@@ -75,19 +105,15 @@ fn get_input_mode_change_trigger(trigger: Trigger<InputModeChanged>) {
     println!("TRIGGER input_mode_change: {:?}", event);
 }
 
-fn read_im_input(
-    im: Res<InputManager>,
-    // fc: Res<FrameCount>
-) {
-    if im.is_action_just_pressed(LEFT) {
-        println!(" !!! LEFT IS JUST PRESSED !!! ")
-    }
-    if im.is_action_just_released(LEFT) {
-        println!(" LEFT REALEASED ")
+fn read_input(im: Res<InputManager>, fc: Res<FrameCount>) {
+    if im.is_action_just_pressed(ACTIVATE) {
+        println!(" !!! ACTIVATE !!! ")
     }
 
-    // let motion = im.get_motion(MOVEMENT);
-    // println!("{}, motion: {}", fc.0, motion);
+    let motion = im.get_motion(MOVEMENT);
+    println!("{}, movement: {}", fc.0, motion);
+    let motion = im.get_motion(CAMERA);
+    println!("{}, camera: {}", fc.0, motion);
 }
 
 #[derive(Component)]
