@@ -1,3 +1,4 @@
+use core::isometric_camera::CameraManager;
 use std::{f32::consts::PI, time::Duration};
 
 use bevy::core::FrameCount;
@@ -97,15 +98,20 @@ fn get_input_mode_change_trigger(trigger: Trigger<InputModeChanged>) {
     println!("TRIGGER input_mode_change: {:?}", event);
 }
 
-fn read_input(im: Res<InputManager>, fc: Res<FrameCount>) {
+fn read_input(
+    im: Res<InputManager>,
+    fc: Res<FrameCount>,
+    mut camera: ResMut<CameraManager>,
+) {
     if im.is_action_just_pressed(ACTIVATE) {
         println!(" !!! ACTIVATE !!! ")
     }
 
     let motion = im.get_motion(MOVEMENT);
-    println!("{}, movement: {}", fc.0, motion);
+    camera.move_camera(im.get_motion3z(MOVEMENT));
+    // println!("{}, movement: {}", fc.0, motion);
     let motion = im.get_motion(CAMERA);
-    println!("{}, camera: {}", fc.0, motion);
+    // println!("{}, camera: {}", fc.0, motion);
 }
 
 #[derive(Component)]
@@ -187,11 +193,11 @@ fn setup(
         Transform::from_xyz(4.0, 8.0, 4.0),
     ));
 
-    // camera
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
+    // // camera
+    // commands.spawn((
+    //     Camera3d::default(),
+    //     Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+    // ));
 }
 
 fn setup_once_loaded(
