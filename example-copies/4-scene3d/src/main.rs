@@ -98,20 +98,17 @@ fn get_input_mode_change_trigger(trigger: Trigger<InputModeChanged>) {
     println!("TRIGGER input_mode_change: {:?}", event);
 }
 
-fn read_input(
-    im: Res<InputManager>,
-    fc: Res<FrameCount>,
-    mut camera: ResMut<CameraManager>,
-) {
+fn read_input(im: Res<InputManager>, fc: Res<FrameCount>, mut camera: ResMut<CameraManager>) {
     if im.is_action_just_pressed(ACTIVATE) {
         println!(" !!! ACTIVATE !!! ")
     }
 
-    let motion = im.get_motion(MOVEMENT);
-    camera.move_camera(im.get_motion3z(MOVEMENT));
-    // println!("{}, movement: {}", fc.0, motion);
+    // camera.move_camera_global(im.get_motion3z(MOVEMENT));
+    camera.move_camera_local(im.get_motion3z(MOVEMENT));
+
     let motion = im.get_motion(CAMERA);
-    // println!("{}, camera: {}", fc.0, motion);
+    camera.rotate_camera_yaw(motion.x);
+    camera.rotate_camera_pitch(motion.y);
 }
 
 #[derive(Component)]

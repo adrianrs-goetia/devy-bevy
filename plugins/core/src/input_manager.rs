@@ -145,7 +145,7 @@ impl InputManager {
     pub fn get_motion3z(&self, action: Action) -> Vec3 {
         let v2 = self.get_motion(action);
         Vec3 {
-            x: v2.x,
+            x: -v2.x, // TODO how to handle x-axis in 3d space
             y: 0.0,
             z: v2.y,
         }

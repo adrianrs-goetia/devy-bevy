@@ -1,5 +1,5 @@
 use bevy::{
-    asset::io::memory::Dir, prelude::*, text::cosmic_text::ttf_parser::cff::Matrix, utils::HashMap,
+    prelude::*, utils::HashMap,
 };
 
 const UP: Dir3 = Dir3::Y;
@@ -14,7 +14,7 @@ impl Plugin for IsometricCameraPlugin {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-enum CameraMode {
+pub enum CameraMode {
     Game,
     Editor,
 }
@@ -56,8 +56,20 @@ impl CameraManager {
         self.current_mode = mode
     }
 
-    pub fn move_camera(&mut self, movement: Vec3) {
-        self.get_mut().move_camera(movement)
+    pub fn move_camera_global(&mut self, movement: Vec3) {
+        self.get_mut().move_camera_global(movement)
+    }
+
+    pub fn move_camera_local(&mut self, movement: Vec3) {
+        self.get_mut().move_camera_local(movement)
+    }
+
+    pub fn rotate_camera_yaw(&mut self, rotation: f32) {
+        self.get_mut().rotate_camera_yaw(rotation)
+    }
+
+    pub fn rotate_camera_pitch(&mut self, rotation: f32) {
+        self.get_mut().rotate_camera_pitch(rotation)
     }
 }
 
@@ -75,16 +87,28 @@ impl Default for IsometricCamera {
             pivot: Vec3::ZERO,
             angle_yaw: 45., // angles in degrees
             angle_pitch: -45.,
-            // angle_yaw: 0., // angles in degrees
-            // angle_pitch: 0.,
             spring_arm_length: 20.,
         }
     }
 }
 
 impl IsometricCamera {
-    fn move_camera(&mut self, movement: Vec3) {
+    fn move_camera_global(&mut self, movement: Vec3) {
         self.pivot += movement
+    }
+
+    fn move_camera_local(&mut self, movement: Vec3) {
+        let quat = Quat::from_rotation_y(self.angle_yaw.to_radians());
+        self.pivot += quat.mul_vec3(movement)
+    }
+
+    fn rotate_camera_yaw(&mut self, rotation: f32) {
+        self.angle_yaw += rotation
+    }
+
+    fn rotate_camera_pitch(&mut self, rotation: f32) {
+        self.angle_pitch -= rotation;
+        self.angle_pitch = self.angle_pitch.clamp(-89., 89.)
     }
 
     fn get_camera_transform(&self) -> Transform {
@@ -104,8 +128,6 @@ impl IsometricCamera {
 
         transform = transform.with_translation(pos);
         transform.looking_at(self.pivot, UP)
-
-        // Transform::from_translation(Vec3::X + Vec3::Y).looking_at(Vec3::ZERO, UP)
     }
 }
 
